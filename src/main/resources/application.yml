@@ -1,1 +1,22 @@
-spring.application.name=generate-app-backend
+spring:
+  application:
+    name: generate-app-backend
+  datasource:
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      url: jdbc:mysql://127.0.0.1:3306/generate_code?useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&transformedBitIsBoolean=true&allowMultiQueries=true&useSSL=false&allowPublicKeyRetrieval=true
+      username: root
+      password: 123456
+server:
+  port: 8125
+  servlet:
+    context-path: /api
+# springdoc-openapi
+springdoc:
+  group-configs:
+    - group: 'default'
+      packages-to-scan: com.org.generateappbackend.controller
+# knife4j
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
