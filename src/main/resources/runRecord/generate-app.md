@@ -274,4 +274,89 @@ function login() {
 2025-11-01T16:53:21.193+08:00  INFO 13204 --- [hain4j-OpenAI-1] c.o.g.core.AiCodeGeneratorFacade         : 代码保存成功,路径为: D:\javastudy\yupi\generate-app-backend\tmp\code_output\multi_file_1984544212757569536
 
 ```
+#### 7.使用curl工具进行测试
+
+```text
+# 1. 用户登录
+curl -X POST "http://localhost:8125/api/user/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userAccount": "konna",
+    "userPassword": "12345678"
+  }' \
+  -c cookies.txt
+curl -G "http://localhost:8125/api/app/chat/gen/code" \
+  --data-urlencode "appId=342537482388156416" \
+  --data-urlencode "message=生成一个登录页面，总共不超过20行代码" \
+  -H "Accept: text/event-stream" \
+  -H "Cache-Control: no-cache" \
+  -b cookies.txt \
+  --no-buffer
+# 2. 调用生成代码接口（流式）
+curl -G "http://localhost:8125/api/app/chat/gen/code" \
+  --data-urlencode "appId=342537482388156416" \
+  --data-urlencode "message=生成一个登录页面，总共不超过20行代码" \
+  -H "Accept: text/event-stream" \
+  -H "Cache-Control: no-cache" \
+  -b cookies.txt \
+  --no-buffer
+
+
+###
+GET http://localhost:8125/api/app/chat/gen/code?
+    appId=342537482388156416&
+    message=Generate_a_login_page_with_no_more_than_20_lines_of_code_in_total
+```
+测试完成，但是和前端对接的时候发现会出现空格丢失的问题
+
+前端使用EventSource对接目前的接口时，会出现空格丢失问题。
+
+这里可以参考大厂的做法：
+
+1.deepseek，将原本的返回值封装到JSON中。
+
+2.美团的noCode，它的做法更加高级，直接对内容进行了加密
+
+这里在对接前端时候时候又发现了新的问题:
+
+在SSE中，当服务器关闭连接时，会触发客户端的onclose事件，这是前端判断流结束的标准方式。
+
+但是，onclose事件会在连接正常结束(服务器主动关闭)和异常中断(如网络问题)时都触发，前端就很难区分到底后端是正常响应了所有数据、还是异常中断了。
+
+因此，我们最好在后端添加一个明确的done事件。这样可以清晰地区分流的正常结束和异常中断。
+修改接口代码，额外追加结束事件
+
+```text
+data:{"d":"20"}
+
+data:{"d":"行"}
+
+data:{"d":"代码"}
+
+data:{"d":"，"}
+
+data:{"d":"并且"}
+
+data:{"d":"遵循"}
+
+data:{"d":"了"}
+
+data:{"d":"代码"}
+
+data:{"d":"分离"}
+
+data:{"d":"的最佳"}
+
+data:{"d":"实践"}
+
+data:{"d":"。"}
+
+event:done
+100 38116    0 38116    0     0    552      0 --:--:--  0:01:09 --:--:--   555
+
+100 38118    0 38118    0     0    552      0 --:--:--  0:01:09 --:--:--   546
+
+```
+看到done事件，前端就知道流正常结束了
+
 

@@ -2,6 +2,7 @@ package com.org.generateappbackend.controller;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.json.JSONUtil;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.org.generateappbackend.annotation.AuthCheck;
@@ -25,10 +26,15 @@ import com.org.generateappbackend.service.AppService;
 import com.org.generateappbackend.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  *  控制层。
@@ -287,6 +293,42 @@ public class AppController {
         return ResultUtils.success(appVOPage);
     }
 
+    /**
+     * 应用聊天生成代码(流式SSE)
+     *
+     * @param appId 应用ID
+     * @param message 用户提示词
+     * @param request 请求对象
+     * @return 生成结果流
+     */
+    @GetMapping(value = "/chat/gen/code",produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<String>> chatToGenCode(@RequestParam Long appId,
+                                               @RequestParam String message,
+                                               HttpServletRequest request){
+        // 1.参数校验
+        ThrowUtils.throwIf( appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用ID无效");
+        ThrowUtils.throwIf(StrUtil.isBlank(message), ErrorCode.PARAMS_ERROR, "用户提示词不能为空");
+        // 2.获取当前用户
+        User loginUser = userService.getLoginUser(request);
+        // 3.调用服务生成代码(流式)
+        Flux<String> contentFlux = appService.chatToGenCode(appId, message, loginUser);
+        return contentFlux
+                .map(content->{ // 4.解决传输给前端，会出现的空格问题
+                    // 这里只使用一个d，是为了节省流量
+                    Map<String, String> wrapper = Map.of("d", content);
+                    String jsonData = JSONUtil.toJsonStr(wrapper);
+                    return ServerSentEvent.<String>builder()
+                            .data(jsonData)
+                            .build();
+                })
+                .concatWith(Mono.just( // 5.解决前端无法识别，是正常结束还是异常中断，给他增加一个done事件
+                        // 发送一个done事件
+                                ServerSentEvent.<String>builder()
+                                        .event("done")
+                                        .data("")
+                                        .build()
+                ));
+    }
 
     // endregion
 }
